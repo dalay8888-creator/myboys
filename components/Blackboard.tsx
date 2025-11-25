@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { WordData } from '../types';
 import { DEFAULT_WORDS } from '../constants';
+// Added: Import GoogleGenAI SDK
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface BlackboardProps {
   isOpen: boolean;
@@ -69,6 +71,9 @@ const PRESETS = [
 
 const Blackboard: React.FC<BlackboardProps> = ({ isOpen, onClose, onSave }) => {
   const [text, setText] = useState('');
+  // Added: State for AI generation
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -130,6 +135,49 @@ const Blackboard: React.FC<BlackboardProps> = ({ isOpen, onClose, onSave }) => {
     });
   };
 
+  // Added: Handle AI generation using Google GenAI
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsGenerating(true);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Generate 5 simple English words related to: "${aiPrompt}". 
+        For kids. Return JSON.
+        Each item: word (uppercase), hint (English meaning + Chinese translation), emoji.`,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                word: { type: Type.STRING },
+                hint: { type: Type.STRING },
+                emoji: { type: Type.STRING },
+              },
+              required: ['word', 'hint', 'emoji'],
+            },
+          },
+        },
+      });
+
+      const data = JSON.parse(response.text || '[]');
+      if (Array.isArray(data)) {
+        const formatted = data.map((item: any) => `${item.word}：${item.hint} ${item.emoji}`);
+        appendPreset(formatted);
+        setAiPrompt('');
+      }
+    } catch (error) {
+      console.error("AI Error:", error);
+      alert('Failed to generate words. Check API Key.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -161,6 +209,25 @@ const Blackboard: React.FC<BlackboardProps> = ({ isOpen, onClose, onSave }) => {
                 <p className="text-gray-400 text-xs font-mono">HAPPY：幸福的 😊</p>
               </div>
             </div>
+          </div>
+
+          {/* Added: AI Generation Bar */}
+          <div className="flex gap-2 items-center bg-indigo-900/30 p-2 rounded-lg border border-indigo-500/30 shrink-0">
+             <span className="text-indigo-300 text-xs font-bold uppercase tracking-wider ml-1 whitespace-nowrap">✨ AI Generate:</span>
+             <input 
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAiGenerate()}
+                placeholder="Enter topic (e.g. Space, Animals)..."
+                className="flex-1 bg-indigo-950/60 text-white text-sm px-3 py-1 rounded border border-indigo-500/50 focus:border-indigo-400 focus:outline-none placeholder-indigo-400/50"
+             />
+             <button
+                onClick={handleAiGenerate}
+                disabled={isGenerating}
+                className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-1.5 rounded transition-colors whitespace-nowrap"
+             >
+                {isGenerating ? 'Thinking...' : 'Go'}
+             </button>
           </div>
 
           {/* Quick Add Buttons */}
