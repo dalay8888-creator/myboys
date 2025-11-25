@@ -1,0 +1,5 @@
+{
+  "name": "闪星单词",
+  "description": "An interactive, SVG-based spelling game for children featuring smooth GSAP animations, macaron colors, and a blackboard editor for custom words.",
+  "requestFramePermissions": []
+}
